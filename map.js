@@ -1,3 +1,14 @@
+/* ====== 中国底图专用：本地 geoJSON 编码表 ====== */
+let chinaLocalAdcode = {};   // name -> adcode
+function buildChinaMapping(geo) {
+  geo.features.forEach(f => {
+    const name = f.properties.name;
+    const code = f.properties.adcode;   // 如果是 id 字段就换成 f.properties.id.slice(0,6)
+    if (name && code) chinaLocalAdcode[name] = code;
+  });
+}
+
+
 const DEBUG = 1;
 function log(...args) { if (DEBUG) console.log('[TravelMap]', ...args); }
 
@@ -544,7 +555,9 @@ loadAsiaMap();
 
 function loadMap(adcode, mapName) {
     log('---- loadMap ---- adcode=', adcode, 'mapName=', mapName);
-    fetch(`https://geo.datav.aliyun.com/areas_v3/bound/${adcode}_full.json`)
+    fetch(adcode === '100000'
+        ? 'china.json'            // 中国底图走本地
+        : `https://geo.datav.aliyun.com/areas_v3/bound/${adcode}_full.json`)
         .then(r => r.json())
         .then(geo => {
             const cleaned = turf.featureCollection(
