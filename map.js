@@ -553,36 +553,47 @@ const provinceCodes = {
 
 loadAsiaMap();
 
+
+
 function loadMap(adcode, mapName) {
-    log('---- loadMap ---- adcode=', adcode, 'mapName=', mapName);
-    fetch(adcode === '100000'
-        ? 'china.json'            // 中国底图走本地
-        : `https://geo.datav.aliyun.com/areas_v3/bound/${adcode}_full.json`)
-        .then(r => r.json())
-        .then(geo => {
-            const cleaned = turf.featureCollection(
-                geo.features.filter(f => turf.area(f) / 1e6 > 0.1)
-            );
-            const box = turf.bbox(cleaned);
-            const center = [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2];
-            const w = turf.distance([box[0], center[1]], [box[2], center[1]]);
-            const zoom = Math.floor(8 - Math.log2(w / 360 * Math.PI * 2));
-            echarts.registerMap(mapName, cleaned);
+  // ① 中国底图
+  if (adcode === '100000') {
+    fetch('/geo/china/china_full.json').then(r => r.json()).then(g => {
+      echarts.registerMap('china', g);
+      currentLevel = LEVEL_CHINA;
+      updateBackBtn(); updateStats('china');
+      renderChart('china', [104, 36], 1.2);
+    }).catch(err => alert('中国地图加载失败'));
+    return;
+  }
 
-            /* 判断进入的是中国还是省 */
-            if (mapName === 'china') {
-                currentLevel = LEVEL_CHINA;
-            } else {
-                currentLevel = 'province';
-            }
-            log('loadMap 设置 currentLevel =', currentLevel);
-            updateBackBtn();
-            updateStats(mapName);
+  // ② 省/市底图 → 优先本地，没有再 DataV
+  const localUrl = `/geo/province/${adcode}_full.json`;
+  const datavUrl = `https://geo.datav.aliyun.com/areas_v3/bound/${adcode}_full.json`;
 
-            renderChart(mapName, center, zoom);
-        })
-        .catch(err => { console.error(err); alert('地图加载失败'); });
+  fetch(localUrl)
+    .then(r => { if (!r.ok) throw new Error('本地无文件'); return r.json(); })
+    .catch(() => fetch(datavUrl).then(r => r.json())) // 回退
+    .then(geo => {
+      const cleaned = turf.featureCollection(
+        geo.features.filter(f => turf.area(f) / 1e6 > 0.1)
+      );
+      const box = turf.bbox(cleaned);
+      const center = [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2];
+      const w = turf.distance([box[0], center[1]], [box[2], center[1]]);
+      const zoom = Math.floor(8 - Math.log2(w / 360 * Math.PI * 2));
+      echarts.registerMap(mapName, cleaned);
+      currentLevel = 'province';
+      updateBackBtn(); updateStats(mapName);
+      renderChart(mapName, center, zoom);
+    })
+    .catch(err => { console.error(err); alert('地图加载失败'); });
 }
+
+
+
+
+
 function renderChart(mapName, center, zoom) {
     log('renderChart, mapName=', mapName, 'center=', center, 'zoom=', zoom);
     const isCountry = mapName === 'china';
